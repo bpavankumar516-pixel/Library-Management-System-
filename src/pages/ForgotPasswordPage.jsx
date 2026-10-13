@@ -5,8 +5,8 @@ import ForgotPasswordForm from '../components/auth/ForgotPasswordForm';
 export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen lg:h-screen w-full bg-[#edf9f5] flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden selection:bg-[#0bad96]/20 selection:text-emerald-950">
-      {/* Left Column: Complete Hero Showcase */}
-      <div className="w-full lg:w-[52%] xl:w-[50%] lg:h-full relative overflow-hidden flex-shrink-0">
+      {/* Left Column: Full Clarity Hero Showcase */}
+      <div className="w-full lg:w-[52%] xl:w-[50%] lg:h-full relative overflow-hidden flex-shrink-0 border-b lg:border-b-0 lg:border-r border-emerald-100/80">
         <AuthHero />
       </div>
 

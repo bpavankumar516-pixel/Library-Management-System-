@@ -1,8 +1,9 @@
 import React from 'react';
 
-export default function Logo({ size = 'default', showSubtitle = true, className = '' }) {
+export default function Logo({ size = 'default', showSubtitle = true, variant = 'dark', className = '' }) {
   const isLarge = size === 'large';
   const isSmall = size === 'small';
+  const isLight = variant === 'light';
 
   const iconSize = isLarge ? 'w-11 h-11' : isSmall ? 'w-7 h-7' : 'w-9 h-9';
   const titleSize = isLarge ? 'text-2xl' : isSmall ? 'text-lg' : 'text-xl';
@@ -59,11 +60,11 @@ export default function Logo({ size = 'default', showSubtitle = true, className 
       {/* Brand Typography */}
       <div className="flex flex-col text-left leading-none">
         <div className={`font-black tracking-tight ${titleSize} flex items-baseline`}>
-          <span className="text-slate-900">Libra</span>
-          <span className="text-[#0bad96]">Book</span>
+          <span className={isLight ? 'text-white drop-shadow-sm' : 'text-slate-900'}>Libra</span>
+          <span className="text-[#0bad96] drop-shadow-sm">Book</span>
         </div>
         {showSubtitle && (
-          <span className={`font-bold tracking-[0.22em] text-slate-400 uppercase mt-0.5 ${subSize}`}>
+          <span className={`font-bold tracking-[0.22em] uppercase mt-0.5 ${subSize} ${isLight ? 'text-emerald-200/90 drop-shadow-xs' : 'text-slate-400'}`}>
             LIBRARY MANAGEMENT SYSTEM
           </span>
         )}

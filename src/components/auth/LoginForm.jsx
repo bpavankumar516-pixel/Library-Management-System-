@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, BookOpen, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, BookOpen } from 'lucide-react';
 import { toast } from 'react-toastify';
-import confetti from 'canvas-confetti';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../common/Logo';
 
@@ -52,21 +51,8 @@ export default function LoginForm() {
     try {
       const res = await login(data.email, data.password, data.rememberMe);
       if (res.success) {
-        // Trigger celebratory confetti effect
-        confetti({
-          particleCount: 75,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ['#0bad96', '#10b981', '#3b82f6', '#f59e0b'],
-        });
-
-        toast.success(`Welcome back, ${res.user.name}! Accessing Library Portal...`, {
-          icon: '🎉',
-        });
-
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 600);
+        toast.success(`Welcome back, ${res.user.name}!`);
+        navigate('/dashboard', { replace: true });
       } else {
         toast.error(res.message || 'Login failed');
       }
@@ -82,16 +68,8 @@ export default function LoginForm() {
     try {
       const res = await loginWithGoogle();
       if (res.success) {
-        confetti({
-          particleCount: 60,
-          spread: 50,
-          origin: { y: 0.7 },
-          colors: ['#4285F4', '#34A853', '#FBBC05', '#EA4335'],
-        });
-        toast.success(`Welcome, ${res.user.name}! Google Authentication Verified.`);
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 500);
+        toast.success(`Welcome, ${res.user.name}!`);
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
       toast.error('Google Sign-In failed');
@@ -101,41 +79,41 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[430px] mx-auto relative my-auto">
-      {/* Top Welcome Back floating pill outside card */}
-      <div className="hidden sm:flex justify-end mb-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/80 backdrop-blur-xs border border-emerald-100 text-xs font-semibold text-slate-700 shadow-xs">
+    <div className="w-full max-w-[440px] mx-auto relative my-auto">
+      {/* Top Floating Badge Outside Card */}
+      <div className="flex justify-end mb-3">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-xs border border-emerald-100 text-xs font-bold text-slate-700 shadow-xs">
           <BookOpen className="w-3.5 h-3.5 text-[#0bad96]" />
           <span>Welcome Back!</span>
         </div>
       </div>
 
       {/* Main Floating Card */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 xl:p-8 shadow-xl shadow-emerald-950/10 border border-slate-100/90 transition-all">
+      <div className="bg-white rounded-3xl p-8 sm:p-9 shadow-2xl shadow-emerald-950/10 border border-slate-100/90 transition-all">
         {/* Centered Brand Logo */}
-        <div className="flex justify-center">
+        <div className="flex justify-center mb-5">
           <Logo size="default" />
         </div>
 
-        {/* Heading */}
-        <div className="text-center mt-3 sm:mt-4">
-          <h2 className="text-2xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-tight">
+        {/* Heading & Subtitle */}
+        <div className="text-center mb-6">
+          <h2 className="text-2xl sm:text-[28px] font-black text-slate-900 tracking-tight leading-tight">
             Welcome Back
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-normal">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1.5 font-normal">
             Sign in to your account to continue
           </p>
         </div>
 
-        {/* 1-Click Demo Admin Credentials Button */}
-        <div className="mt-3 p-2.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/60 text-xs flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className="p-1 rounded-lg bg-emerald-100 text-[#0bad96] font-bold">
+        {/* 1-Click Demo Admin Credentials Banner */}
+        <div className="mb-6 p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/70 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <span className="p-1 rounded-lg bg-emerald-100 text-[#0bad96] font-bold flex-shrink-0">
               <Sparkles className="w-3.5 h-3.5" />
             </span>
-            <div className="truncate">
-              <span className="font-semibold text-slate-800">Admin: </span>
-              <span className="text-slate-600 font-medium">Pavan Kumar</span>
+            <div className="truncate text-left">
+              <span className="font-bold text-slate-800">Admin: </span>
+              <span className="text-slate-600 font-semibold">Pavan Kumar</span>
               <span className="hidden sm:inline text-slate-400 text-[11px] ml-1">
                 ({defaultAdmin.email})
               </span>
@@ -144,20 +122,18 @@ export default function LoginForm() {
           <button
             type="button"
             onClick={handleQuickFill}
-            className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-[#0bad96] hover:bg-[#099884] text-white font-bold text-[11px] transition-colors shadow-xs cursor-pointer"
+            className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-[#0bad96] hover:bg-[#099884] text-white font-bold text-[11px] transition-colors shadow-xs cursor-pointer"
           >
             Auto Fill
           </button>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-3.5 space-y-3">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Email Input */}
           <div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Mail className="w-4 h-4" />
-              </div>
+            <div className="relative flex items-center">
+              <Mail className="w-5 h-5 text-slate-400 absolute left-4 pointer-events-none" />
               <input
                 type="email"
                 placeholder="Email Address"
@@ -168,13 +144,13 @@ export default function LoginForm() {
                     message: 'Invalid email address',
                   },
                 })}
-                className={`w-full pl-10 pr-4 py-2.5 bg-white border ${
-                  errors.email ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-[#0bad96] focus:ring-emerald-100'
-                } rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-3 transition-all duration-150`}
+                className={`w-full pl-12 pr-4 h-12 bg-white border ${
+                  errors.email ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-[#0bad96] focus:ring-emerald-500/15'
+                } rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 transition-all duration-150`}
               />
             </div>
             {errors.email && (
-              <p className="mt-1 text-xs text-red-500 font-medium pl-1">
+              <p className="mt-1 text-xs text-red-500 font-medium pl-1 text-left">
                 {errors.email.message}
               </p>
             )}
@@ -182,10 +158,8 @@ export default function LoginForm() {
 
           {/* Password Input */}
           <div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-4 h-4" />
-              </div>
+            <div className="relative flex items-center">
+              <Lock className="w-5 h-5 text-slate-400 absolute left-4 pointer-events-none" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Password"
@@ -196,43 +170,43 @@ export default function LoginForm() {
                     message: 'Password must be at least 6 characters',
                   },
                 })}
-                className={`w-full pl-10 pr-10 py-2.5 bg-white border ${
-                  errors.password ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-[#0bad96] focus:ring-emerald-100'
-                } rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-3 transition-all duration-150`}
+                className={`w-full pl-12 pr-12 h-12 bg-white border ${
+                  errors.password ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-[#0bad96] focus:ring-emerald-500/15'
+                } rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 transition-all duration-150`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer focus:outline-none"
+                className="absolute right-4 text-slate-400 hover:text-slate-600 cursor-pointer focus:outline-none"
               >
                 {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
+                  <EyeOff className="w-5 h-5" />
                 ) : (
-                  <Eye className="w-4 h-4" />
+                  <Eye className="w-5 h-5" />
                 )}
               </button>
             </div>
             {errors.password && (
-              <p className="mt-1 text-xs text-red-500 font-medium pl-1">
+              <p className="mt-1 text-xs text-red-500 font-medium pl-1 text-left">
                 {errors.password.message}
               </p>
             )}
           </div>
 
           {/* Remember me & Forgot Password Row */}
-          <div className="flex items-center justify-between text-xs pt-0.5">
+          <div className="flex items-center justify-between text-xs sm:text-sm pt-0.5">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
                 {...register('rememberMe')}
-                className="w-3.5 h-3.5 rounded border-slate-300 text-[#0bad96] focus:ring-[#0bad96] accent-[#0bad96]"
+                className="w-4 h-4 rounded border-slate-300 text-[#0bad96] focus:ring-[#0bad96] accent-[#0bad96]"
               />
               <span className="text-slate-700 font-medium">Remember me</span>
             </label>
 
             <Link
               to="/forgot-password"
-              className="text-[#0bad96] hover:text-[#099884] font-semibold hover:underline"
+              className="text-[#0bad96] hover:text-[#099884] font-bold hover:underline"
             >
               Forgot Password?
             </Link>
@@ -242,13 +216,13 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full mt-1.5 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0bad96] to-[#099884] hover:from-[#099884] hover:to-[#077d6d] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all duration-150 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-[#0bad96] to-[#099884] hover:from-[#099884] hover:to-[#077d6d] text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all duration-150 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed mt-2"
           >
             {isSubmitting ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <LogIn className="w-4 h-4 stroke-[2.5]" />
+                <LogIn className="w-5 h-5 stroke-[2.5]" />
                 <span>Sign In</span>
               </>
             )}
@@ -256,15 +230,11 @@ export default function LoginForm() {
         </form>
 
         {/* OR Divider */}
-        <div className="relative my-3 sm:my-3.5">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-200" />
-          </div>
-          <div className="relative flex justify-center text-[11px] uppercase">
-            <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">
-              OR
-            </span>
-          </div>
+        <div className="relative my-5 flex items-center justify-center">
+          <div className="w-full border-t border-slate-200 absolute" />
+          <span className="bg-white px-3 relative text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            OR
+          </span>
         </div>
 
         {/* Continue with Google Button */}
@@ -272,9 +242,9 @@ export default function LoginForm() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isSubmitting}
-          className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-colors shadow-xs cursor-pointer disabled:opacity-70"
+          className="w-full h-12 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center justify-center gap-3 transition-colors shadow-xs cursor-pointer disabled:opacity-70"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
               d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z"
@@ -296,11 +266,11 @@ export default function LoginForm() {
         </button>
 
         {/* Bottom Link to Register */}
-        <div className="mt-3.5 text-center text-xs text-slate-600">
-          <span>Don't have an account? </span>
+        <div className="mt-6 text-center text-xs sm:text-sm text-slate-600">
+          <span>Don't have an account?</span>
           <Link
             to="/register"
-            className="text-[#0bad96] hover:text-[#099884] font-bold hover:underline"
+            className="text-[#0bad96] hover:text-[#099884] font-bold hover:underline ml-1.5"
           >
             Register
           </Link>
