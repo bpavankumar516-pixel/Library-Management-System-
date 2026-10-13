@@ -17,10 +17,10 @@ import sidebarSproutImg from '../../assets/sidebar_book_sprout_trans.png';
 export default function Sidebar({ isMobileOpen, onCloseMobile }) {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, hasChevron: false },
-    { name: 'Books', path: '/books', icon: BookOpen, hasChevron: true },
+    { name: 'Books', path: '/books', icon: BookOpen, hasChevron: false },
     { name: 'Members', path: '/members', icon: Users, hasChevron: true },
-    { name: 'Issue / Return', path: '/issue-return', icon: Repeat, hasChevron: false },
-    { name: 'Fines', path: '/fines', icon: Coins, hasChevron: false },
+    { name: 'Issue / Return', path: '/issue-return', icon: Repeat, hasChevron: true },
+    { name: 'Fines', path: '/fines', icon: Coins, hasChevron: true },
     { name: 'Search & Categories', path: '/categories', icon: Search, hasChevron: true },
     { name: 'Reports', path: '/reports', icon: BarChart2, hasChevron: true },
     { name: 'Settings', path: '/settings', icon: Settings, hasChevron: true },
