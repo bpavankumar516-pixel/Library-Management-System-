@@ -5,8 +5,17 @@ import { bookService } from '../services/bookService';
 const BookContext = createContext(null);
 
 export function BookProvider({ children }) {
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [books, setBooks] = useState(() => {
+    try {
+      const cached = localStorage.getItem('librabook_books_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters & Search state
@@ -78,6 +87,47 @@ export function BookProvider({ children }) {
       console.error('Error deleting book:', err);
       toast.error('Failed to delete book.');
       return { success: false, error: err.message };
+    }
+  };
+
+  // Issue copy dynamically
+  const issueBookCopy = async (id) => {
+    try {
+      const target = books.find((b) => b.id === id);
+      if (!target || target.availableCopies <= 0) {
+        toast.warning('No available copies left in library to issue!');
+        return { success: false };
+      }
+      const updated = { ...target, availableCopies: target.availableCopies - 1 };
+      const updatedList = books.map((b) => (b.id === id ? updated : b));
+      setBooks(updatedList);
+      localStorage.setItem('librabook_books_v2', JSON.stringify(updatedList));
+      toast.success(`1 copy of "${target.title}" issued! Available: ${updated.availableCopies}`, { icon: '📖' });
+      return { success: true, book: updated };
+    } catch {
+      toast.error('Failed to issue copy');
+      return { success: false };
+    }
+  };
+
+  // Return copy dynamically
+  const returnBookCopy = async (id) => {
+    try {
+      const target = books.find((b) => b.id === id);
+      if (!target) return { success: false };
+      if (target.availableCopies >= target.totalCopies) {
+        toast.info('All copies of this book are already in the library inventory!');
+        return { success: false };
+      }
+      const updated = { ...target, availableCopies: target.availableCopies + 1 };
+      const updatedList = books.map((b) => (b.id === id ? updated : b));
+      setBooks(updatedList);
+      localStorage.setItem('librabook_books_v2', JSON.stringify(updatedList));
+      toast.success(`1 copy of "${target.title}" returned! Available: ${updated.availableCopies}`, { icon: '🔄' });
+      return { success: true, book: updated };
+    } catch {
+      toast.error('Failed to return copy');
+      return { success: false };
     }
   };
 
@@ -214,6 +264,8 @@ export function BookProvider({ children }) {
     updateBook,
     deleteBook,
     getBookById,
+    issueBookCopy,
+    returnBookCopy,
     resetBooks,
   };
 

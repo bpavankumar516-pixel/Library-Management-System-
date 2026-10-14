@@ -15,6 +15,9 @@ import {
   ChevronRight,
   RefreshCw,
   Sparkles,
+  Layers,
+  Repeat,
+  AlertTriangle,
 } from 'lucide-react';
 import { useBooks } from '../context/BookContext';
 import BookDetailsView from '../components/books/BookDetailsView';
@@ -25,6 +28,7 @@ export default function BooksPage() {
   const {
     books,
     loading,
+    stats,
     searchQuery,
     setSearchQuery,
     selectedCategory,
@@ -56,15 +60,10 @@ export default function BooksPage() {
   const [editingBook, setEditingBook] = useState(null);
   const [deletingBook, setDeletingBook] = useState(null);
 
-  // Sync viewingBook when books list updates
-  useEffect(() => {
-    if (viewingBook) {
-      const refreshed = books.find((b) => b.id === viewingBook.id);
-      if (refreshed) {
-        setViewingBook(refreshed);
-      }
-    }
-  }, [books, viewingBook]);
+  // Derived live viewingBook when books list updates
+  const currentViewingBook = viewingBook
+    ? books.find((b) => b.id === viewingBook.id) || viewingBook
+    : null;
 
   // Handlers for CRUD
   const handleAddBook = async (bookData) => {
@@ -113,11 +112,11 @@ export default function BooksPage() {
   };
 
   // If in Book Details View mode (Panel 1 from screenshot)
-  if (viewingBook) {
+  if (currentViewingBook) {
     return (
       <div className="space-y-4 max-w-[1520px] mx-auto select-none">
         <BookDetailsView
-          book={viewingBook}
+          book={currentViewingBook}
           onBack={() => setViewingBook(null)}
           onEdit={(b) => setEditingBook(b)}
           onDelete={(b) => setDeletingBook(b)}
@@ -171,7 +170,50 @@ export default function BooksPage() {
         </button>
       </div>
 
-      {/* 2. Filters & Controls Bar matching screenshot */}
+      {/* 2. Top 4 Dynamic Metric Stats Bar for Books */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0bad96] flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-5 h-5 stroke-[2]" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-xs text-slate-500 font-semibold">Total Titles</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{stats.totalTitles} books</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-5 h-5 stroke-[2]" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-xs text-slate-500 font-semibold">Available Copies</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{stats.availableCopies} in stock</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+            <Repeat className="w-5 h-5 stroke-[2]" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-xs text-slate-500 font-semibold">Issued Copies</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{stats.issuedCopies} loaned</div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 stroke-[2]" />
+          </div>
+          <div className="leading-tight">
+            <div className="text-xs text-slate-500 font-semibold">Low Stock Titles</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{stats.lowStockCount} titles</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Filters & Controls Bar matching screenshot */}
       <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-100 shadow-2xs flex flex-col lg:flex-row items-center justify-between gap-3">
         {/* Search input */}
         <div className="relative w-full lg:max-w-md">

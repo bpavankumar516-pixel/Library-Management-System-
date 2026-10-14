@@ -5,6 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import { AuthProvider } from './context/AuthContext';
 import { BookProvider } from './context/BookContext';
+import { MemberProvider } from './context/MemberContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Layout from './components/layout/Layout';
 
@@ -13,29 +14,31 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import BooksPage from './pages/BooksPage';
+import MembersPage from './pages/MembersPage';
 
 export default function App() {
   return (
     <AuthProvider>
       <BookProvider>
-        <Router>
-          <Routes>
-            {/* Public Authentication Routes */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <MemberProvider>
+          <Router>
+            <Routes>
+              {/* Public Authentication Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            {/* Protected Library Portal */}
-            <Route
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/books" element={<BooksPage />} />
-            <Route path="/members" element={<DashboardPage />} />
+              {/* Protected Library Portal */}
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/books" element={<BooksPage />} />
+                <Route path="/members" element={<MembersPage />} />
             <Route path="/issue-return" element={<DashboardPage />} />
             <Route path="/fines" element={<DashboardPage />} />
             <Route path="/categories" element={<DashboardPage />} />
@@ -61,7 +64,8 @@ export default function App() {
           pauseOnHover
           theme="light"
         />
-      </Router>
+          </Router>
+        </MemberProvider>
       </BookProvider>
     </AuthProvider>
   );

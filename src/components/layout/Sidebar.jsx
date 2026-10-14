@@ -18,7 +18,7 @@ export default function Sidebar({ isMobileOpen, onCloseMobile }) {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, hasChevron: false },
     { name: 'Books', path: '/books', icon: BookOpen, hasChevron: false },
-    { name: 'Members', path: '/members', icon: Users, hasChevron: true },
+    { name: 'Members', path: '/members', icon: Users, hasChevron: false },
     { name: 'Issue / Return', path: '/issue-return', icon: Repeat, hasChevron: true },
     { name: 'Fines', path: '/fines', icon: Coins, hasChevron: true },
     { name: 'Search & Categories', path: '/categories', icon: Search, hasChevron: true },
