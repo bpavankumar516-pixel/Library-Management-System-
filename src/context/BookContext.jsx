@@ -10,7 +10,20 @@ export function BookProvider({ children }) {
       const cached = localStorage.getItem('librabook_books_v2');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((book) => {
+            if (
+              (book.id === 'book_10' || (book.title && book.title.toLowerCase().includes('sapiens'))) &&
+              (!book.coverUrl || book.coverUrl.includes('goodreads.com') || book.coverUrl.includes('23692271'))
+            ) {
+              return {
+                ...book,
+                coverUrl: 'https://m.media-amazon.com/images/I/713jIoMO3UL._AC_UF1000,1000_QL80_.jpg',
+              };
+            }
+            return book;
+          });
+        }
       }
     } catch {}
     return [];
@@ -91,7 +104,7 @@ export function BookProvider({ children }) {
   };
 
   // Issue copy dynamically
-  const issueBookCopy = async (id) => {
+  const issueBookCopy = async (id, { silent = false } = {}) => {
     try {
       const target = books.find((b) => b.id === id);
       if (!target || target.availableCopies <= 0) {
@@ -102,7 +115,9 @@ export function BookProvider({ children }) {
       const updatedList = books.map((b) => (b.id === id ? updated : b));
       setBooks(updatedList);
       localStorage.setItem('librabook_books_v2', JSON.stringify(updatedList));
-      toast.success(`1 copy of "${target.title}" issued! Available: ${updated.availableCopies}`, { icon: '📖' });
+      if (!silent) {
+        toast.success(`1 copy of "${target.title}" issued! Available: ${updated.availableCopies}`, { icon: '📖' });
+      }
       return { success: true, book: updated };
     } catch {
       toast.error('Failed to issue copy');
@@ -111,7 +126,7 @@ export function BookProvider({ children }) {
   };
 
   // Return copy dynamically
-  const returnBookCopy = async (id) => {
+  const returnBookCopy = async (id, { silent = false } = {}) => {
     try {
       const target = books.find((b) => b.id === id);
       if (!target) return { success: false };
@@ -123,7 +138,9 @@ export function BookProvider({ children }) {
       const updatedList = books.map((b) => (b.id === id ? updated : b));
       setBooks(updatedList);
       localStorage.setItem('librabook_books_v2', JSON.stringify(updatedList));
-      toast.success(`1 copy of "${target.title}" returned! Available: ${updated.availableCopies}`, { icon: '🔄' });
+      if (!silent) {
+        toast.success(`1 copy of "${target.title}" returned! Available: ${updated.availableCopies}`, { icon: '🔄' });
+      }
       return { success: true, book: updated };
     } catch {
       toast.error('Failed to return copy');

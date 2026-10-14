@@ -131,7 +131,7 @@ const SEED_BOOKS = [
     year: 2014,
     availableCopies: 5,
     totalCopies: 9,
-    coverUrl: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1700360710i/23692271.jpg',
+    coverUrl: 'https://m.media-amazon.com/images/I/713jIoMO3UL._AC_UF1000,1000_QL80_.jpg',
     description: 'From examining early human ancestors to the cognitive revolution, Harari surveys human history through anthropology and economics.',
   },
   {
@@ -170,7 +170,32 @@ function initializeStore() {
     return SEED_BOOKS;
   }
   try {
-    return JSON.parse(existing);
+    const parsed = JSON.parse(existing);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_BOOKS));
+      return SEED_BOOKS;
+    }
+    // Auto-fix broken Sapiens cover URL if cached from earlier versions
+    let hasUpdated = false;
+    const sanitized = parsed.map((book) => {
+      if (
+        (book.id === 'book_10' || (book.title && book.title.toLowerCase().includes('sapiens'))) &&
+        (!book.coverUrl || book.coverUrl.includes('goodreads.com') || book.coverUrl.includes('23692271'))
+      ) {
+        hasUpdated = true;
+        return {
+          ...book,
+          coverUrl: 'https://m.media-amazon.com/images/I/713jIoMO3UL._AC_UF1000,1000_QL80_.jpg',
+        };
+      }
+      return book;
+    });
+
+    if (hasUpdated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+      return sanitized;
+    }
+    return parsed;
   } catch (err) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_BOOKS));
     return SEED_BOOKS;

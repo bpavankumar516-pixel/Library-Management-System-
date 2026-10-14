@@ -15,6 +15,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import BooksPage from './pages/BooksPage';
 import MembersPage from './pages/MembersPage';
+import IssueReturnPage from './pages/IssueReturnPage';
+import FinesPage from './pages/FinesPage';
 
 export default function App() {
   return (
@@ -39,12 +41,12 @@ export default function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/books" element={<BooksPage />} />
                 <Route path="/members" element={<MembersPage />} />
-            <Route path="/issue-return" element={<DashboardPage />} />
-            <Route path="/fines" element={<DashboardPage />} />
-            <Route path="/categories" element={<DashboardPage />} />
-            <Route path="/reports" element={<DashboardPage />} />
-            <Route path="/settings" element={<DashboardPage />} />
-          </Route>
+                <Route path="/issue-return" element={<IssueReturnPage />} />
+                <Route path="/fines" element={<FinesPage />} />
+                <Route path="/categories" element={<DashboardPage />} />
+                <Route path="/reports" element={<DashboardPage />} />
+                <Route path="/settings" element={<DashboardPage />} />
+              </Route>
 
           {/* Root and Fallback Route */}
           <Route path="/" element={<Navigate to="/login" replace />} />

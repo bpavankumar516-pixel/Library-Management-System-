@@ -148,22 +148,54 @@ export function MemberProvider({ children }) {
   }, [searchQuery, selectedStatus, sortBy]);
 
   // Settle fine for a member
-  const settleMemberFine = async (id) => {
+  const settleMemberFine = async (id, { paymentMethod = 'Cash', silent = false } = {}) => {
     try {
+      const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      let memberName = '';
+      let fineAmount = 0;
+
       const updatedList = members.map((m) => {
-        if (m.id === id) {
-          const updatedFineHistory = (m.fineHistory || []).map((f) => ({ ...f, status: 'Paid' }));
+        if (String(m.id) === String(id) || m.membershipId === id) {
+          memberName = m.name;
+          fineAmount = m.totalFine || 50;
+          let currentFineHistory = m.fineHistory || [];
+
+          let updatedFineHistory;
+          if (currentFineHistory.length > 0) {
+            updatedFineHistory = currentFineHistory.map((f) => ({
+              ...f,
+              status: 'Paid',
+              date: today,
+              paymentMethod,
+            }));
+          } else {
+            updatedFineHistory = [
+              {
+                id: `fine_${Date.now()}`,
+                reason: 'Overdue library penalty settled',
+                amount: fineAmount,
+                date: today,
+                status: 'Paid',
+                paymentMethod,
+              },
+            ];
+          }
+
           return {
             ...m,
             totalFine: 0,
+            overdueBooks: 0,
             fineHistory: updatedFineHistory,
           };
         }
         return m;
       });
+
       setMembers(updatedList);
       localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
-      toast.success('All fines settled successfully!', { icon: '✅' });
+      if (!silent) {
+        toast.success(`Fine of ₹${fineAmount} settled for ${memberName || 'member'} via ${paymentMethod}!`, { icon: '💰' });
+      }
       return { success: true };
     } catch {
       toast.error('Failed to settle fines');
@@ -171,8 +203,63 @@ export function MemberProvider({ children }) {
     }
   };
 
+  // Waive fine for a member
+  const waiveMemberFine = async (id, { reason = 'Waived by Librarian', silent = false } = {}) => {
+    try {
+      const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      let memberName = '';
+      let fineAmount = 0;
+
+      const updatedList = members.map((m) => {
+        if (String(m.id) === String(id) || m.membershipId === id) {
+          memberName = m.name;
+          fineAmount = m.totalFine || 50;
+          let currentFineHistory = m.fineHistory || [];
+
+          let updatedFineHistory;
+          if (currentFineHistory.length > 0) {
+            updatedFineHistory = currentFineHistory.map((f) => ({
+              ...f,
+              status: 'Waived',
+              date: today,
+              reason: f.reason ? `${f.reason} (Waived)` : reason,
+            }));
+          } else {
+            updatedFineHistory = [
+              {
+                id: `fine_${Date.now()}`,
+                reason: `Overdue penalty waived (${reason})`,
+                amount: fineAmount,
+                date: today,
+                status: 'Waived',
+              },
+            ];
+          }
+
+          return {
+            ...m,
+            totalFine: 0,
+            overdueBooks: 0,
+            fineHistory: updatedFineHistory,
+          };
+        }
+        return m;
+      });
+
+      setMembers(updatedList);
+      localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
+      if (!silent) {
+        toast.success(`Penalty waived for ${memberName || 'member'}!`, { icon: '🛡️' });
+      }
+      return { success: true };
+    } catch {
+      toast.error('Failed to waive fine');
+      return { success: false };
+    }
+  };
+
   // Issue a book to a member dynamically
-  const issueBookToMember = async (memberId, loanData) => {
+  const issueBookToMember = async (memberId, loanData, { silent = false } = {}) => {
     try {
       const today = new Date();
       const issueDate = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -185,10 +272,13 @@ export function MemberProvider({ children }) {
         id: `loan_${Date.now()}`,
         bookTitle: loanData.bookTitle || loanData.title || 'Library Book',
         bookId: loanData.bookId || loanData.id || '',
+        isbn: loanData.isbn || '9781847941831',
+        category: loanData.category || 'General',
         issueDate,
         dueDate,
         returnDate: '-',
         status: 'Issued',
+        issuedAt: Date.now(),
       };
 
       const updatedList = members.map((m) => {
@@ -205,7 +295,9 @@ export function MemberProvider({ children }) {
 
       setMembers(updatedList);
       localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
-      toast.success(`Book "${newLoan.bookTitle}" issued to member!`, { icon: '📖' });
+      if (!silent) {
+        toast.success(`Book "${newLoan.bookTitle}" issued to member!`, { icon: '📖' });
+      }
       return { success: true, loan: newLoan };
     } catch (err) {
       console.error('Error issuing book to member:', err);
@@ -215,12 +307,16 @@ export function MemberProvider({ children }) {
   };
 
   // Return a book for a member
-  const returnMemberBook = async (memberId, issueId, bookTitle) => {
+  const returnMemberBook = async (memberId, issueId, bookTitle, { returnDate, fineAmount, isFinePaid = false, silent = false } = {}) => {
     try {
       let bookName = bookTitle || '';
+      const actualReturnDate = returnDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
       const updatedList = members.map((m) => {
         if (String(m.id) === String(memberId) || m.membershipId === memberId) {
           let found = false;
+          let wasOverdue = false;
+
           const updatedIssueHistory = (m.issueHistory || []).map((item) => {
             const matchesId = issueId && String(item.id) === String(issueId);
             const matchesTitle = !found && bookTitle && item.bookTitle?.toLowerCase().trim() === bookTitle?.toLowerCase().trim() && (item.status === 'Issued' || item.status === 'Overdue' || item.status === 'Active Loan');
@@ -228,33 +324,70 @@ export function MemberProvider({ children }) {
             if ((matchesId || matchesTitle) && item.status !== 'Returned') {
               found = true;
               if (!bookName) bookName = item.bookTitle;
+              if (item.status === 'Overdue') wasOverdue = true;
               return {
                 ...item,
                 status: 'Returned',
-                returnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                returnDate: actualReturnDate,
+                returnedAt: Date.now(),
               };
             }
             return item;
           });
 
-          // If no matching loan was found in history, add a returned record
+          // If no matching loan was found in history, prepend a returned record
           if (!found && bookTitle) {
             updatedIssueHistory.unshift({
               id: `ret_${Date.now()}`,
               bookTitle,
               issueDate: '01 Oct 2025',
               dueDate: '15 Oct 2025',
-              returnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+              returnDate: actualReturnDate,
               status: 'Returned',
+              returnedAt: Date.now(),
             });
           }
 
+          // Prioritize newly returned loans at the top of history
+          updatedIssueHistory.sort((a, b) => {
+            if (a.returnedAt && b.returnedAt) return b.returnedAt - a.returnedAt;
+            if (a.returnedAt && !b.returnedAt) return -1;
+            if (!a.returnedAt && b.returnedAt) return 1;
+            return 0;
+          });
+
           const stillIssued = updatedIssueHistory.filter((i) => i.status === 'Issued' || i.status === 'Overdue' || i.status === 'Active Loan').length;
+          const stillOverdue = updatedIssueHistory.filter((i) => i.status === 'Overdue').length;
+
+          // Record fine in fineHistory if applicable
+          let fineHistory = m.fineHistory || [];
+          let newTotalFine = m.totalFine || 0;
+
+          if (fineAmount && Number(fineAmount) > 0) {
+            const fineNum = Number(fineAmount);
+            fineHistory = [
+              {
+                id: `fine_${Date.now()}`,
+                reason: `Late return penalty (${bookName})`,
+                amount: fineNum,
+                date: actualReturnDate,
+                status: isFinePaid ? 'Paid' : 'Pending',
+              },
+              ...fineHistory,
+            ];
+            newTotalFine = isFinePaid ? Math.max(0, newTotalFine - fineNum) : (newTotalFine || fineNum);
+          } else if (wasOverdue && (!fineAmount || Number(fineAmount) === 0)) {
+            newTotalFine = 0;
+          }
+
           return {
             ...m,
             booksIssued: stillIssued,
             booksReturned: (m.booksReturned || 0) + 1,
+            overdueBooks: stillOverdue,
+            totalFine: newTotalFine,
             issueHistory: updatedIssueHistory,
+            fineHistory,
           };
         }
         return m;
@@ -262,7 +395,9 @@ export function MemberProvider({ children }) {
 
       setMembers(updatedList);
       localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
-      toast.success(`Book "${bookName || 'Copy'}" returned successfully!`, { icon: '🔄' });
+      if (!silent) {
+        toast.success(`Book "${bookName || 'Copy'}" returned successfully!`, { icon: '🔄' });
+      }
       return { success: true, bookTitle: bookName };
     } catch {
       toast.error('Failed to return book');
@@ -324,6 +459,7 @@ export function MemberProvider({ children }) {
     deleteMember,
     getMemberById,
     settleMemberFine,
+    waiveMemberFine,
     issueBookToMember,
     returnMemberBook,
     resetMembers,

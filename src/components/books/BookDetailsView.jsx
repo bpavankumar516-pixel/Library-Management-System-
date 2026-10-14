@@ -763,6 +763,9 @@ export default function BookDetailsView({ book, onBack, onEdit, onDelete }) {
                 src={book.coverUrl}
                 alt={book.title}
                 className="w-12 h-16 rounded-lg object-cover border border-slate-200 flex-shrink-0"
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=150&q=80';
+                }}
               />
               <div className="overflow-hidden">
                 <h4 className="text-xs font-bold text-slate-900 truncate">{book.title}</h4>
