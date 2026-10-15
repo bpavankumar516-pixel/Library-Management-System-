@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Repeat,
   BookOpen,
@@ -26,6 +27,7 @@ import { useBooks } from '../context/BookContext';
 import { useMembers } from '../context/MemberContext';
 
 export default function IssueReturnPage() {
+  const navigate = useNavigate();
   const { books, stats: bookStats, issueBookCopy, returnBookCopy } = useBooks();
   const { members, stats: memberStats, issueBookToMember, returnMemberBook } = useMembers();
 
@@ -59,7 +61,7 @@ export default function IssueReturnPage() {
     return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   });
   const [calculatedFine, setCalculatedFine] = useState(0);
-  const [isFineSettledAtReturn, setIsFineSettledAtReturn] = useState(true);
+  const [isFineSettledAtReturn, setIsFineSettledAtReturn] = useState(false);
 
   // =================== Tables Search & Filters State ===================
   const [recentIssuesSearch, setRecentIssuesSearch] = useState('');
@@ -439,15 +441,34 @@ export default function IssueReturnPage() {
       });
     }
 
-    // ONLY ONE SINGLE TOAST on return as requested: "one toast msg chalu 3 avasram ledhu"
-    toast.success(`Book "${targetBook?.title || bookTitleToFind}" returned successfully!`, { icon: '🔄' });
-    setSelectedReturnLoanId('');
-    setCalculatedFine(0);
-    setIsReturnModalOpen(false);
-
-    // Immediately switch to Issue History tab and page 1 so user instantly sees the returned transaction
-    setActiveTab('history');
-    setCurrentPage(1);
+    // If returned book incurs a fine, route immediately to Fines page to view and settle/waive it!
+    if (calculatedFine && Number(calculatedFine) > 0) {
+      toast.success(
+        `Book "${targetBook?.title || bookTitleToFind}" returned! Fine of ₹${calculatedFine} routed to Fines page.`,
+        { icon: '💰' }
+      );
+      setSelectedReturnLoanId('');
+      setCalculatedFine(0);
+      setIsReturnModalOpen(false);
+      navigate('/fines', {
+        state: {
+          filter: isFineSettledAtReturn ? 'Paid' : 'Pending',
+          search: targetMember?.name || '',
+          bookTitle: targetBook?.title || bookTitleToFind,
+          fineAmount: Number(calculatedFine),
+          memberName: targetMember?.name || 'Member',
+          membershipId: targetMember?.membershipId || '',
+          date: returnActualDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        },
+      });
+    } else {
+      toast.success(`Book "${targetBook?.title || bookTitleToFind}" returned successfully!`, { icon: '🔄' });
+      setSelectedReturnLoanId('');
+      setCalculatedFine(0);
+      setIsReturnModalOpen(false);
+      setActiveTab('history');
+      setCurrentPage(1);
+    }
   };
 
   // Open Return Modal pre-filled when clicking Return button on any table row

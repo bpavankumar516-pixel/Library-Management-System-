@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Coins,
   Search,
@@ -26,12 +27,44 @@ import { useBooks } from '../context/BookContext';
 export default function FinesPage() {
   const { members, settleMemberFine, waiveMemberFine } = useMembers();
   const { books } = useBooks();
+  const location = useLocation();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [highlightBanner, setHighlightBanner] = useState(() => {
+    if (location.state && location.state.bookTitle && location.state.fineAmount) {
+      return location.state;
+    }
+    return null;
+  });
+
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return location.state?.search || '';
+  });
+  const [statusFilter, setStatusFilter] = useState(() => {
+    return location.state?.filter || 'All';
+  });
   const [settlingFine, setSettlingFine] = useState(null); // modal state
   const [waivingFine, setWaivingFine] = useState(null); // waive confirm modal state
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+
+  // Fine status overrides with localStorage persistence
+  const [fineOverrides, setFineOverrides] = useState(() => {
+    try {
+      const cached = localStorage.getItem('librabook_fine_overrides');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return {};
+  });
+
+  // Sync state if navigation state changes
+  useEffect(() => {
+    if (location.state) {
+      if (location.state.filter) setStatusFilter(location.state.filter);
+      if (location.state.search) setSearchQuery(location.state.search);
+      if (location.state.bookTitle && location.state.fineAmount) {
+        setHighlightBanner(location.state);
+      }
+    }
+  }, [location.state]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,13 +119,37 @@ export default function FinesPage() {
       }
     });
 
-    // Seed historical transactions for complete demo ledger
+    // Seed historical & active transactions for complete demo ledger
     const seedFines = [
+      {
+        id: 'seed_fine_pending_1',
+        memberId: 'm3',
+        memberName: 'Sneha Patel',
+        membershipId: 'LIB025',
+        memberAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+        reason: 'Overdue return penalty (Clean Code)',
+        amount: 75,
+        date: '12 Oct 2025',
+        status: 'Pending',
+        paymentMethod: '-',
+      },
+      {
+        id: 'seed_fine_pending_2',
+        memberId: 'm4',
+        memberName: 'Vikram Joshi',
+        membershipId: 'LIB026',
+        memberAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+        reason: 'Damaged page penalty (Deep Work)',
+        amount: 120,
+        date: '14 Oct 2025',
+        status: 'Pending',
+        paymentMethod: '-',
+      },
       {
         id: 'hist_fine_1',
         memberId: 'm1',
         memberName: 'Rahul Verma',
-        membershipId: 'M00123',
+        membershipId: 'LIB021',
         memberAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
         reason: 'Late return fee (Atomic Habits)',
         amount: 25,
@@ -104,7 +161,7 @@ export default function FinesPage() {
         id: 'hist_fine_2',
         memberId: 'm2',
         memberName: 'Priya Sharma',
-        membershipId: 'M00124',
+        membershipId: 'LIB022',
         memberAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
         reason: 'Lost library badge replacement',
         amount: 100,
@@ -116,7 +173,7 @@ export default function FinesPage() {
         id: 'hist_fine_3',
         memberId: 'm5',
         memberName: 'Karan Mehta',
-        membershipId: 'M00127',
+        membershipId: 'LIB027',
         memberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
         reason: 'Book cover wear fee (Dune)',
         amount: 50,
@@ -132,25 +189,57 @@ export default function FinesPage() {
       }
     });
 
-    return list;
-  }, [members]);
+    // Apply any interactive overrides saved for fine records
+    const mapped = list.map((item) => {
+      const override = fineOverrides[item.id] || (item.fineId && fineOverrides[`${item.memberId}_${item.fineId}`]);
+      if (override) {
+        return {
+          ...item,
+          status: override.status,
+          paymentMethod: override.paymentMethod || item.paymentMethod,
+          date: override.date || item.date,
+        };
+      }
+      return item;
+    });
+
+    // Ensure newest fines or fines for returned book appear on top
+    mapped.sort((a, b) => {
+      if (highlightBanner?.bookTitle) {
+        const aMatches = a.reason?.toLowerCase().includes(highlightBanner.bookTitle.toLowerCase());
+        const bMatches = b.reason?.toLowerCase().includes(highlightBanner.bookTitle.toLowerCase());
+        if (aMatches && !bMatches) return -1;
+        if (!aMatches && bMatches) return 1;
+      }
+      const aIsNew = String(a.id).includes('fine_');
+      const bIsNew = String(b.id).includes('fine_');
+      if (aIsNew && !bIsNew) return -1;
+      if (!aIsNew && bIsNew) return 1;
+      return 0;
+    });
+
+    return mapped;
+  }, [members, fineOverrides, highlightBanner]);
 
   // Summary Metrics
   const totalFineCollected = useMemo(() => {
-    const paidSum = allFineRecords.filter((f) => f.status === 'Paid').reduce((acc, f) => acc + f.amount, 0);
-    return paidSum > 0 ? paidSum + 2450 : 2450;
+    const paidSum = allFineRecords.filter((f) => f.status === 'Paid').reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+    return 2450 + paidSum;
   }, [allFineRecords]);
 
   const pendingFines = useMemo(() => {
-    return allFineRecords.filter((f) => f.status === 'Pending').reduce((acc, f) => acc + f.amount, 0);
+    return allFineRecords.filter((f) => f.status === 'Pending').reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
   }, [allFineRecords]);
 
   const overdueMembersCount = useMemo(() => {
-    return members.filter((m) => m.overdueBooks > 0 || m.totalFine > 0).length || 3;
-  }, [members]);
+    const pendingMemberIds = new Set(
+      allFineRecords.filter((f) => f.status === 'Pending').map((f) => f.memberId || f.membershipId)
+    );
+    return pendingMemberIds.size;
+  }, [allFineRecords]);
 
   const waivedFines = useMemo(() => {
-    return allFineRecords.filter((f) => f.status === 'Waived').reduce((acc, f) => acc + f.amount, 0);
+    return allFineRecords.filter((f) => f.status === 'Waived').reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
   }, [allFineRecords]);
 
   // Tab counts
@@ -187,6 +276,13 @@ export default function FinesPage() {
   // Pagination Slice
   const totalItems = filteredFines.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [totalPages, currentPage]);
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const paginatedFines = filteredFines.slice(startIndex, endIndex);
@@ -196,21 +292,93 @@ export default function FinesPage() {
     e.preventDefault();
     if (!settlingFine) return;
 
-    if (settleMemberFine) {
-      await settleMemberFine(settlingFine.memberId, { paymentMethod, silent: false });
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // 1. Persist override for this specific fine in state & localStorage
+    setFineOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [settlingFine.id]: {
+          status: 'Paid',
+          paymentMethod,
+          date: today,
+        },
+      };
+      if (settlingFine.fineId) {
+        updated[`${settlingFine.memberId}_${settlingFine.fineId}`] = {
+          status: 'Paid',
+          paymentMethod,
+          date: today,
+        };
+      }
+      try {
+        localStorage.setItem('librabook_fine_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Call MemberContext to update member debt & fine history
+    if (settleMemberFine && settlingFine.memberId) {
+      await settleMemberFine(settlingFine.memberId, {
+        fineId: settlingFine.fineId,
+        paymentMethod,
+        silent: true,
+      });
     }
+
+    // 3. Single clean Toast
+    toast.success(`Fine of ₹${settlingFine.amount} paid by ${settlingFine.memberName} via ${paymentMethod}!`, {
+      icon: '💰',
+    });
+
+    // 4. Close modal
     setSettlingFine(null);
   };
 
   // Waive Fine Handler
   const handleConfirmWaive = async () => {
     if (!waivingFine) return;
-    if (waiveMemberFine) {
+
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // 1. Persist override for this specific fine in state & localStorage
+    setFineOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [waivingFine.id]: {
+          status: 'Waived',
+          paymentMethod: 'Discretionary',
+          date: today,
+        },
+      };
+      if (waivingFine.fineId) {
+        updated[`${waivingFine.memberId}_${waivingFine.fineId}`] = {
+          status: 'Waived',
+          paymentMethod: 'Discretionary',
+          date: today,
+        };
+      }
+      try {
+        localStorage.setItem('librabook_fine_overrides', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Call MemberContext to excuse member debt
+    if (waiveMemberFine && waivingFine.memberId) {
       await waiveMemberFine(waivingFine.memberId, {
-        reason: waivingFine.reason,
-        silent: false,
+        fineId: waivingFine.fineId,
+        reason: waivingFine.reason || 'Waived by Librarian',
+        silent: true,
       });
     }
+
+    // 3. Single clean Toast
+    toast.success(`Penalty of ₹${waivingFine.amount} waived for ${waivingFine.memberName}!`, {
+      icon: '🛡️',
+    });
+
+    // 4. Close modals
     setWaivingFine(null);
     if (settlingFine) setSettlingFine(null);
   };
@@ -274,6 +442,51 @@ export default function FinesPage() {
           </div>
         </div>
       </div>
+
+      {/* Dynamic Highlight Banner when navigated from Return Book with Fine */}
+      {highlightBanner && (
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50/50 to-purple-50 border border-purple-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Coins className="w-5 h-5 stroke-[2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-purple-950">Fine Incurred on Book Return</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                  {highlightBanner.filter || 'Pending'}
+                </span>
+              </div>
+              <p className="text-xs text-purple-700 font-medium mt-0.5">
+                Returned Book: <strong>"{highlightBanner.bookTitle}"</strong> | Member: <strong>{highlightBanner.memberName}</strong> | Fine Due:{' '}
+                <strong className="text-purple-950 font-black">₹ {highlightBanner.fineAmount}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setHighlightBanner(null);
+                setSearchQuery('');
+                setStatusFilter('All');
+              }}
+              className="px-3.5 py-1.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-100/50 text-purple-700 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Show All Records
+            </button>
+            <button
+              type="button"
+              onClick={() => setHighlightBanner(null)}
+              className="p-1.5 rounded-xl hover:bg-purple-100 text-purple-400 hover:text-purple-700 cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Search & Filter Bar with Dynamic Count Badges */}
       <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -350,30 +563,51 @@ export default function FinesPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedFines.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-3 font-bold text-slate-400">{startIndex + index + 1}</td>
+                paginatedFines.map((item, index) => {
+                  const isMatch = highlightBanner && (
+                    (highlightBanner.bookTitle && item.reason?.toLowerCase().includes(highlightBanner.bookTitle.toLowerCase())) ||
+                    (highlightBanner.memberName && item.memberName?.toLowerCase().includes(highlightBanner.memberName.toLowerCase()))
+                  );
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition-colors ${
+                        isMatch
+                          ? 'bg-purple-50/80 border-l-4 border-l-purple-600'
+                          : 'hover:bg-slate-50/70'
+                      }`}
+                    >
+                      <td className="py-3 px-3 font-bold text-slate-400">{startIndex + index + 1}</td>
 
-                    {/* Member */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={item.memberAvatar || 'https://i.pravatar.cc/150'}
-                          alt={item.memberName}
-                          className="w-8 h-8 rounded-full object-cover border border-slate-100 flex-shrink-0"
-                          onError={(e) => {
-                            e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                          }}
-                        />
-                        <div className="leading-tight">
-                          <span className="font-bold text-slate-900 block">{item.memberName}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{item.membershipId}</span>
+                      {/* Member */}
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={item.memberAvatar || 'https://i.pravatar.cc/150'}
+                            alt={item.memberName}
+                            className="w-8 h-8 rounded-full object-cover border border-slate-100 flex-shrink-0"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                            }}
+                          />
+                          <div className="leading-tight">
+                            <span className="font-bold text-slate-900 block">{item.memberName}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{item.membershipId}</span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Reason */}
-                    <td className="py-3 px-3 font-medium text-slate-700 max-w-[240px] truncate">{item.reason}</td>
+                      {/* Reason */}
+                      <td className="py-3 px-3 font-medium text-slate-700 max-w-[260px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="truncate">{item.reason}</span>
+                          {isMatch && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-100 text-purple-700 whitespace-nowrap">
+                              Returned Book
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
                     {/* Date */}
                     <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap">{item.date}</td>
@@ -436,7 +670,8 @@ export default function FinesPage() {
                       )}
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>

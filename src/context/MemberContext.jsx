@@ -148,7 +148,7 @@ export function MemberProvider({ children }) {
   }, [searchQuery, selectedStatus, sortBy]);
 
   // Settle fine for a member
-  const settleMemberFine = async (id, { paymentMethod = 'Cash', silent = false } = {}) => {
+  const settleMemberFine = async (id, { fineId = null, paymentMethod = 'Cash', silent = false } = {}) => {
     try {
       const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       let memberName = '';
@@ -157,18 +157,24 @@ export function MemberProvider({ children }) {
       const updatedList = members.map((m) => {
         if (String(m.id) === String(id) || m.membershipId === id) {
           memberName = m.name;
-          fineAmount = m.totalFine || 50;
           let currentFineHistory = m.fineHistory || [];
 
           let updatedFineHistory;
           if (currentFineHistory.length > 0) {
-            updatedFineHistory = currentFineHistory.map((f) => ({
-              ...f,
-              status: 'Paid',
-              date: today,
-              paymentMethod,
-            }));
+            updatedFineHistory = currentFineHistory.map((f) => {
+              if (!fineId || String(f.id) === String(fineId)) {
+                fineAmount += Number(f.amount) || 50;
+                return {
+                  ...f,
+                  status: 'Paid',
+                  date: today,
+                  paymentMethod,
+                };
+              }
+              return f;
+            });
           } else {
+            fineAmount = m.totalFine || 50;
             updatedFineHistory = [
               {
                 id: `fine_${Date.now()}`,
@@ -181,10 +187,14 @@ export function MemberProvider({ children }) {
             ];
           }
 
+          const remainingPending = updatedFineHistory
+            .filter((f) => f.status === 'Pending')
+            .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+
           return {
             ...m,
-            totalFine: 0,
-            overdueBooks: 0,
+            totalFine: remainingPending,
+            overdueBooks: remainingPending > 0 ? m.overdueBooks : 0,
             fineHistory: updatedFineHistory,
           };
         }
@@ -194,7 +204,7 @@ export function MemberProvider({ children }) {
       setMembers(updatedList);
       localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
       if (!silent) {
-        toast.success(`Fine of ₹${fineAmount} settled for ${memberName || 'member'} via ${paymentMethod}!`, { icon: '💰' });
+        toast.success(`Fine of ₹${fineAmount || 50} settled for ${memberName || 'member'} via ${paymentMethod}!`, { icon: '💰' });
       }
       return { success: true };
     } catch {
@@ -204,7 +214,7 @@ export function MemberProvider({ children }) {
   };
 
   // Waive fine for a member
-  const waiveMemberFine = async (id, { reason = 'Waived by Librarian', silent = false } = {}) => {
+  const waiveMemberFine = async (id, { fineId = null, reason = 'Waived by Librarian', silent = false } = {}) => {
     try {
       const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       let memberName = '';
@@ -213,18 +223,24 @@ export function MemberProvider({ children }) {
       const updatedList = members.map((m) => {
         if (String(m.id) === String(id) || m.membershipId === id) {
           memberName = m.name;
-          fineAmount = m.totalFine || 50;
           let currentFineHistory = m.fineHistory || [];
 
           let updatedFineHistory;
           if (currentFineHistory.length > 0) {
-            updatedFineHistory = currentFineHistory.map((f) => ({
-              ...f,
-              status: 'Waived',
-              date: today,
-              reason: f.reason ? `${f.reason} (Waived)` : reason,
-            }));
+            updatedFineHistory = currentFineHistory.map((f) => {
+              if (!fineId || String(f.id) === String(fineId)) {
+                fineAmount += Number(f.amount) || 50;
+                return {
+                  ...f,
+                  status: 'Waived',
+                  date: today,
+                  reason: f.reason ? `${f.reason} (Waived)` : reason,
+                };
+              }
+              return f;
+            });
           } else {
+            fineAmount = m.totalFine || 50;
             updatedFineHistory = [
               {
                 id: `fine_${Date.now()}`,
@@ -236,10 +252,14 @@ export function MemberProvider({ children }) {
             ];
           }
 
+          const remainingPending = updatedFineHistory
+            .filter((f) => f.status === 'Pending')
+            .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+
           return {
             ...m,
-            totalFine: 0,
-            overdueBooks: 0,
+            totalFine: remainingPending,
+            overdueBooks: remainingPending > 0 ? m.overdueBooks : 0,
             fineHistory: updatedFineHistory,
           };
         }
@@ -249,7 +269,7 @@ export function MemberProvider({ children }) {
       setMembers(updatedList);
       localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
       if (!silent) {
-        toast.success(`Penalty waived for ${memberName || 'member'}!`, { icon: '🛡️' });
+        toast.success(`Penalty of ₹${fineAmount || 50} waived for ${memberName || 'member'}!`, { icon: '🛡️' });
       }
       return { success: true };
     } catch {
@@ -369,15 +389,16 @@ export function MemberProvider({ children }) {
               {
                 id: `fine_${Date.now()}`,
                 reason: `Late return penalty (${bookName})`,
+                bookTitle: bookName,
                 amount: fineNum,
                 date: actualReturnDate,
                 status: isFinePaid ? 'Paid' : 'Pending',
               },
               ...fineHistory,
             ];
-            newTotalFine = isFinePaid ? Math.max(0, newTotalFine - fineNum) : (newTotalFine || fineNum);
+            newTotalFine = isFinePaid ? Math.max(0, (Number(m.totalFine) || 0) - fineNum) : ((Number(m.totalFine) || 0) + fineNum);
           } else if (wasOverdue && (!fineAmount || Number(fineAmount) === 0)) {
-            newTotalFine = 0;
+            newTotalFine = Math.max(0, (Number(m.totalFine) || 0) - 50);
           }
 
           return {

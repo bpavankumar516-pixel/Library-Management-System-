@@ -160,6 +160,32 @@ const SEED_BOOKS = [
     coverUrl: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1417900846i/29579.jpg',
     description: 'The story of our world in and out of time, as psychohistorian Hari Seldon foresees the fall of the Galactic Empire.',
   },
+  {
+    id: 'book_13',
+    title: 'The 5 AM Club',
+    author: 'Robin Sharma',
+    isbn: '9781443456623',
+    publisher: 'HarperCollins',
+    category: 'Self Help',
+    year: 2018,
+    availableCopies: 4,
+    totalCopies: 8,
+    coverUrl: 'https://images-na.ssl-images-amazon.com/images/P/1443456624.01._SCLZZZZZZZ_SX500_.jpg',
+    description: 'Legendary leadership and elite performance expert Robin Sharma introduced The 5am Club concept over twenty years ago, based on a revolutionary morning routine.',
+  },
+  {
+    id: 'book_14',
+    title: 'Wings of Fire',
+    author: 'A.P.J. Abdul Kalam',
+    isbn: '9788173711466',
+    publisher: 'Universities Press',
+    category: 'Technology',
+    year: 1999,
+    availableCopies: 6,
+    totalCopies: 10,
+    coverUrl: 'https://images-na.ssl-images-amazon.com/images/P/8173711461.01._SCLZZZZZZZ_SX500_.jpg',
+    description: 'An autobiography of A P J Abdul Kalam, former President of India, detailing his journey from humble beginnings to leading India missile development program.',
+  },
 ];
 
 // Initialize books in localStorage
@@ -189,6 +215,15 @@ function initializeStore() {
         };
       }
       return book;
+    });
+
+    // Ensure all seed books (including The 5 AM Club and Wings of Fire) are available
+    const existingIds = new Set(sanitized.map((b) => b.id));
+    SEED_BOOKS.forEach((sb) => {
+      if (!existingIds.has(sb.id)) {
+        sanitized.push(sb);
+        hasUpdated = true;
+      }
     });
 
     if (hasUpdated) {

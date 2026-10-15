@@ -72,7 +72,7 @@ export default function DashboardPage() {
   const availableCopiesCount = bookStats?.availableCopies ?? books.reduce((acc, b) => acc + (Number(b.availableCopies) || 0), 0);
   const issuedCopiesCount = bookStats?.issuedCopies ?? Math.max(0, totalCopiesCount - availableCopiesCount);
   const totalMembersCount = memberStats?.totalMembers || members.length;
-  const overdueBooksCount = members.reduce((acc, m) => acc + (Number(m.overdueBooks) || 0), 0) || Math.max(1, Math.round(issuedCopiesCount * 0.14));
+  const overdueBooksCount = members.reduce((acc, m) => acc + (Number(m.overdueBooks) || 0), 0);
 
   // Canonical metrics aliases to prevent any reference errors
   const totalBooksCount = totalCopiesCount;
@@ -85,8 +85,22 @@ export default function DashboardPage() {
   const categoriesCount = uniqueCategories.length || 6;
 
   const totalFineCollected = useMemo(() => {
-    const fines = members.reduce((acc, m) => acc + (Number(m.totalFine) || 0), 0);
-    return fines > 0 ? fines + 1200 : 2450;
+    let paidFromOverrides = 0;
+    try {
+      const overrides = JSON.parse(localStorage.getItem('librabook_fine_overrides') || '{}');
+      Object.values(overrides).forEach((o) => {
+        if (o.status === 'Paid') paidFromOverrides += 50;
+      });
+    } catch {}
+
+    const memberPaidFines = members.reduce((acc, m) => {
+      const paid = (m.fineHistory || [])
+        .filter((f) => f.status === 'Paid')
+        .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+      return acc + paid;
+    }, 0);
+
+    return 2450 + 125 + memberPaidFines + paidFromOverrides;
   }, [members]);
 
   // Donut chart percentages based on totalCopiesCount
@@ -439,7 +453,7 @@ export default function DashboardPage() {
 
             {/* 3. Books Issued */}
             <div
-              onClick={() => navigate('/books')}
+              onClick={() => navigate('/issue-return')}
               className="bg-white rounded-2xl p-4 sm:p-4.5 border border-slate-100/90 shadow-2xs relative overflow-hidden group hover:shadow-xs hover:border-emerald-200 transition-all min-h-[92px] flex flex-col justify-between cursor-pointer"
             >
               <div className="flex items-start justify-between">
@@ -468,7 +482,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* 4. Overdue Books */}
             <div
-              onClick={() => navigate('/members')}
+              onClick={() => navigate('/issue-return')}
               className="bg-white rounded-2xl p-4 sm:p-4.5 border border-red-100/70 shadow-2xs relative overflow-hidden group hover:shadow-xs hover:border-red-200 transition-all min-h-[92px] flex flex-col justify-between cursor-pointer"
             >
               <div className="flex items-start justify-between">
@@ -520,7 +534,7 @@ export default function DashboardPage() {
 
             {/* 6. Fine Collected */}
             <div
-              onClick={() => navigate('/members')}
+              onClick={() => navigate('/fines')}
               className="bg-white rounded-2xl p-4 sm:p-4.5 border border-slate-100/90 shadow-2xs relative overflow-hidden group hover:shadow-xs hover:border-purple-200 transition-all min-h-[92px] flex flex-col justify-between cursor-pointer"
             >
               <div className="flex items-start justify-between">
@@ -811,7 +825,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate('/books')}
+                  onClick={() => navigate('/issue-return')}
                   className="text-xs font-bold text-[#0bad96] hover:underline cursor-pointer"
                 >
                   View All
