@@ -35,6 +35,7 @@ export default function IssueReturnPage() {
   const [activeTab, setActiveTab] = useState('recent'); // 'recent' | 'history'
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [returnSuccessDetails, setReturnSuccessDetails] = useState(null);
 
   // =================== Pagination State ===================
   const [currentPage, setCurrentPage] = useState(1);
@@ -168,113 +169,15 @@ export default function IssueReturnPage() {
           dueDate: loan.dueDate,
           returnDate: loan.returnDate || '-',
           status: loan.status,
-          fine: loan.status === 'Overdue' ? 50 : 0,
+          fine: loan.fine !== undefined ? loan.fine : (loan.status === 'Overdue' ? 50 : 0),
+          isFinePaid: loan.isFinePaid,
           returnedAt: loan.returnedAt || 0,
           issuedAt: loan.issuedAt || 0,
         });
       });
     });
 
-    // 2. Default Seed Transactions matching user screenshots if library has newly mounted
-    if (list.length === 0) {
-      list.push(
-        {
-          id: 'seed_1',
-          memberId: 'm1',
-          memberName: 'Rahul Verma',
-          membershipId: 'M00123',
-          memberAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-          memberEmail: 'rahul.verma@example.com',
-          bookId: 'book_1',
-          bookTitle: 'Atomic Habits',
-          bookAuthor: 'James Clear',
-          bookCover: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1655988385i/40121378.jpg',
-          isbn: '9781847941831',
-          category: 'Self Help',
-          issueDate: '10 Oct 2025',
-          dueDate: '17 Oct 2025',
-          returnDate: '-',
-          status: 'Issued',
-          fine: 0,
-        },
-        {
-          id: 'seed_2',
-          memberId: 'm2',
-          memberName: 'Priya Sharma',
-          membershipId: 'M00124',
-          memberAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-          memberEmail: 'priya.sharma@example.com',
-          bookId: 'book_2',
-          bookTitle: 'Clean Code',
-          bookAuthor: 'Robert C. Martin',
-          bookCover: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1436202607i/3735293.jpg',
-          isbn: '9780132350884',
-          category: 'Programming',
-          issueDate: '08 Oct 2025',
-          dueDate: '15 Oct 2025',
-          returnDate: '15 Oct 2025',
-          status: 'Issued',
-          fine: 0,
-        },
-        {
-          id: 'seed_3',
-          memberId: 'm3',
-          memberName: 'Amit Kumar',
-          membershipId: 'M00125',
-          memberAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-          memberEmail: 'amit.kumar@example.com',
-          bookId: 'book_3',
-          bookTitle: 'Design Patterns',
-          bookAuthor: 'Erich Gamma',
-          bookCover: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1348027904i/85009.jpg',
-          isbn: '9780201633610',
-          category: 'Technology',
-          issueDate: '05 Oct 2025',
-          dueDate: '12 Oct 2025',
-          returnDate: '12 Oct 2025',
-          status: 'Issued',
-          fine: 0,
-        },
-        {
-          id: 'seed_4',
-          memberId: 'm4',
-          memberName: 'Sneha Reddy',
-          membershipId: 'M00126',
-          memberAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150',
-          memberEmail: 'sneha.reddy@example.com',
-          bookId: 'book_4',
-          bookTitle: 'The Alchemist',
-          bookAuthor: 'Paulo Coelho',
-          bookCover: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1654371463i/18144590.jpg',
-          isbn: '9780061122415',
-          category: 'Fiction',
-          issueDate: '02 Oct 2025',
-          dueDate: '09 Oct 2025',
-          returnDate: '-',
-          status: 'Overdue',
-          fine: 50,
-        },
-        {
-          id: 'seed_5',
-          memberId: 'm5',
-          memberName: 'Karan Mehta',
-          membershipId: 'M00127',
-          memberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-          memberEmail: 'karan.mehta@example.com',
-          bookId: 'book_5',
-          bookTitle: 'Dune',
-          bookAuthor: 'Frank Herbert',
-          bookCover: 'https://images-na.ssl-images-amazon.com/images/S/compressed.photo.goodreads.com/books/1555447414i/44767458.jpg',
-          isbn: '9780441172719',
-          category: 'Science Fiction',
-          issueDate: '01 Oct 2025',
-          dueDate: '08 Oct 2025',
-          returnDate: '08 Oct 2025',
-          status: 'Returned',
-          fine: 0,
-        }
-      );
-    }
+
 
     // Sort transactions: newest returned or issued actions appear on top of history
     list.sort((a, b) => {
@@ -416,9 +319,16 @@ export default function IssueReturnPage() {
       return;
     }
 
-    const targetMember = members.find((m) => String(m.id) === String(selectedReturnMemberId));
-    const targetLoan = (targetMember?.issueHistory || []).find((h) => String(h.id) === String(selectedReturnLoanId));
+    let targetMember = members.find(
+      (m) => String(m.id) === String(selectedReturnMemberId) || m.membershipId === selectedReturnMemberId
+    );
+    if (!targetMember) {
+      targetMember = members.find(
+        (m) => m.name.toLowerCase().includes(String(selectedReturnMemberId).toLowerCase())
+      ) || members[0];
+    }
 
+    const targetLoan = (targetMember?.issueHistory || []).find((h) => String(h.id) === String(selectedReturnLoanId));
     const bookTitleToFind = targetLoan?.bookTitle || selectedReturnLoanId;
     let targetBook = books.find(
       (b) =>
@@ -426,7 +336,7 @@ export default function IssueReturnPage() {
         b.title.toLowerCase().trim() === bookTitleToFind.toLowerCase().trim()
     );
 
-    // 1. Increment book copies in BookContext silently (suppressing duplicate toasts)
+    // 1. Increment book copies in BookContext silently
     if (targetBook) {
       await returnBookCopy(targetBook.id, { silent: true });
     }
@@ -441,34 +351,32 @@ export default function IssueReturnPage() {
       });
     }
 
-    // If returned book incurs a fine, route immediately to Fines page to view and settle/waive it!
-    if (calculatedFine && Number(calculatedFine) > 0) {
+    const fineNum = Number(calculatedFine) || 0;
+
+    if (fineNum > 0) {
       toast.success(
-        `Book "${targetBook?.title || bookTitleToFind}" returned! Fine of ₹${calculatedFine} routed to Fines page.`,
-        { icon: '💰' }
+        `Book "${targetBook?.title || bookTitleToFind}" returned! Fine: ₹${fineNum} (${isFineSettledAtReturn ? 'Paid' : 'Pending'})`,
+        { icon: '🔄' }
       );
-      setSelectedReturnLoanId('');
-      setCalculatedFine(0);
-      setIsReturnModalOpen(false);
-      navigate('/fines', {
-        state: {
-          filter: isFineSettledAtReturn ? 'Paid' : 'Pending',
-          search: targetMember?.name || '',
-          bookTitle: targetBook?.title || bookTitleToFind,
-          fineAmount: Number(calculatedFine),
-          memberName: targetMember?.name || 'Member',
-          membershipId: targetMember?.membershipId || '',
-          date: returnActualDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        },
-      });
     } else {
       toast.success(`Book "${targetBook?.title || bookTitleToFind}" returned successfully!`, { icon: '🔄' });
-      setSelectedReturnLoanId('');
-      setCalculatedFine(0);
-      setIsReturnModalOpen(false);
-      setActiveTab('history');
-      setCurrentPage(1);
     }
+
+    // Set details on Return page so librarian can view complete return & fine summary here without redirect
+    setReturnSuccessDetails({
+      bookTitle: targetBook?.title || bookTitleToFind,
+      memberName: targetMember?.name || 'Member',
+      membershipId: targetMember?.membershipId || '',
+      returnDate: returnActualDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      fineAmount: fineNum,
+      isFinePaid: isFineSettledAtReturn,
+    });
+
+    setSelectedReturnLoanId('');
+    setCalculatedFine(0);
+    setIsReturnModalOpen(false);
+    setActiveTab('history');
+    setCurrentPage(1);
   };
 
   // Open Return Modal pre-filled when clicking Return button on any table row
@@ -537,6 +445,52 @@ export default function IssueReturnPage() {
           </button>
         </div>
       </div>
+
+      {/* Return Success & Fine Summary Details Banner */}
+      {returnSuccessDetails && (
+        <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#0bad96] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-slate-900">Book Return Recorded</span>
+                {returnSuccessDetails.fineAmount > 0 ? (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      returnSuccessDetails.isFinePaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    Fine: ₹{returnSuccessDetails.fineAmount} ({returnSuccessDetails.isFinePaid ? 'Paid at Desk' : 'Pending Fine'})
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                    No Late Fine (₹0)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 font-medium mt-0.5">
+                Book: <strong className="text-slate-900">"{returnSuccessDetails.bookTitle}"</strong> | Member:{' '}
+                <strong className="text-slate-900">{returnSuccessDetails.memberName}</strong>{' '}
+                <span className="font-mono text-slate-400 text-[10px]">({returnSuccessDetails.membershipId})</span> | Return Date:{' '}
+                <strong className="text-slate-700">{returnSuccessDetails.returnDate}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setReturnSuccessDetails(null)}
+              className="p-1.5 rounded-xl hover:bg-emerald-100 text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Top 4 Summary Cards Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -933,11 +887,20 @@ export default function IssueReturnPage() {
                       {/* Fine */}
                       <td className="py-3 px-3 text-right font-semibold text-slate-700">
                         {item.fine > 0 ? (
-                          <span className="text-rose-600 font-bold">₹{item.fine}</span>
+                          <div className="inline-flex flex-col items-end">
+                            <span className="text-rose-600 font-bold">₹{item.fine}</span>
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                item.isFinePaid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                              }`}
+                            >
+                              {item.isFinePaid ? 'Paid' : 'Pending'}
+                            </span>
+                          </div>
                         ) : item.status === 'Returned' ? (
-                          '₹0'
+                          <span className="text-slate-400 font-medium">₹0</span>
                         ) : (
-                          '-'
+                          <span className="text-slate-400">-</span>
                         )}
                       </td>
                     </tr>

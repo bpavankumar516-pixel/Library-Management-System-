@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const STORAGE_KEY = "librabook_members_v4";
+const STORAGE_KEY = "librabook_members_v5";
 
 const CATALOG_BOOKS = [
   { title: "Atomic Habits", id: "book_1" },
@@ -91,6 +91,45 @@ function mapDummyJsonUser(user, index) {
 
   const activeLoanCount = issueHistory.filter((i) => i.status === "Issued" || i.status === "Overdue").length;
 
+  let memberFineHistory = [];
+  if (isOverdue) {
+    memberFineHistory = [
+      {
+        id: `fine_${user.id}_1`,
+        bookTitle: primaryBook.title,
+        reason: `Late return penalty (${primaryBook.title})`,
+        amount: 50,
+        date: "10 Oct 2025",
+        status: "Pending",
+        paymentMethod: "-",
+      },
+    ];
+  } else if (index % 6 === 1) {
+    memberFineHistory = [
+      {
+        id: `fine_${user.id}_paid`,
+        bookTitle: pastBook.title,
+        reason: `Late return fee (${pastBook.title})`,
+        amount: 25,
+        date: "05 Oct 2025",
+        status: "Paid",
+        paymentMethod: "UPI",
+      },
+    ];
+  } else if (index % 9 === 4) {
+    memberFineHistory = [
+      {
+        id: `fine_${user.id}_waived`,
+        bookTitle: pastBook.title,
+        reason: `Book spine wear penalty (${pastBook.title})`,
+        amount: 50,
+        date: "28 Sep 2025",
+        status: "Waived",
+        paymentMethod: "Discretionary",
+      },
+    ];
+  }
+
   return {
     id: `dummy_${user.id}`,
     membershipId: `LIB${memberNum}`,
@@ -106,17 +145,7 @@ function mapDummyJsonUser(user, index) {
     overdueBooks: isOverdue ? 1 : 0,
     totalFine: isOverdue ? 50 : 0,
     issueHistory,
-    fineHistory: isOverdue
-      ? [
-          {
-            id: 1,
-            reason: `Late return fee (${primaryBook.title})`,
-            amount: 50,
-            date: "10 Oct 2025",
-            status: "Pending",
-          },
-        ]
-      : [],
+    fineHistory: memberFineHistory,
   };
 }
 

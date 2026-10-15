@@ -4,10 +4,12 @@ import { memberService } from '../services/memberService';
 
 const MemberContext = createContext(null);
 
+const STORAGE_KEY = 'librabook_members_v5';
+
 export function MemberProvider({ children }) {
   const [members, setMembers] = useState(() => {
     try {
-      const cached = localStorage.getItem('librabook_members_v4') || localStorage.getItem('librabook_members_v3');
+      const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -202,7 +204,7 @@ export function MemberProvider({ children }) {
       });
 
       setMembers(updatedList);
-      localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
       if (!silent) {
         toast.success(`Fine of ₹${fineAmount || 50} settled for ${memberName || 'member'} via ${paymentMethod}!`, { icon: '💰' });
       }
@@ -267,7 +269,7 @@ export function MemberProvider({ children }) {
       });
 
       setMembers(updatedList);
-      localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
       if (!silent) {
         toast.success(`Penalty of ₹${fineAmount || 50} waived for ${memberName || 'member'}!`, { icon: '🛡️' });
       }
@@ -314,7 +316,7 @@ export function MemberProvider({ children }) {
       });
 
       setMembers(updatedList);
-      localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
       if (!silent) {
         toast.success(`Book "${newLoan.bookTitle}" issued to member!`, { icon: '📖' });
       }
@@ -350,6 +352,8 @@ export function MemberProvider({ children }) {
                 status: 'Returned',
                 returnDate: actualReturnDate,
                 returnedAt: Date.now(),
+                fine: Number(fineAmount) || 0,
+                isFinePaid: !!isFinePaid,
               };
             }
             return item;
@@ -365,6 +369,8 @@ export function MemberProvider({ children }) {
               returnDate: actualReturnDate,
               status: 'Returned',
               returnedAt: Date.now(),
+              fine: Number(fineAmount) || 0,
+              isFinePaid: !!isFinePaid,
             });
           }
 
@@ -379,26 +385,37 @@ export function MemberProvider({ children }) {
           const stillIssued = updatedIssueHistory.filter((i) => i.status === 'Issued' || i.status === 'Overdue' || i.status === 'Active Loan').length;
           const stillOverdue = updatedIssueHistory.filter((i) => i.status === 'Overdue').length;
 
-          // Record fine in fineHistory if applicable
-          let fineHistory = m.fineHistory || [];
+          // Filter out existing fine record for this book to prevent duplicate fines
+          const otherFines = (m.fineHistory || []).filter(
+            (f) =>
+              !(
+                (f.bookTitle && bookName && f.bookTitle.toLowerCase().trim() === bookName.toLowerCase().trim()) ||
+                (f.reason && bookName && f.reason.toLowerCase().includes(bookName.toLowerCase().trim()))
+              )
+          );
+
+          let fineHistory = otherFines;
           let newTotalFine = m.totalFine || 0;
 
           if (fineAmount && Number(fineAmount) > 0) {
             const fineNum = Number(fineAmount);
-            fineHistory = [
-              {
-                id: `fine_${Date.now()}`,
-                reason: `Late return penalty (${bookName})`,
-                bookTitle: bookName,
-                amount: fineNum,
-                date: actualReturnDate,
-                status: isFinePaid ? 'Paid' : 'Pending',
-              },
-              ...fineHistory,
-            ];
-            newTotalFine = isFinePaid ? Math.max(0, (Number(m.totalFine) || 0) - fineNum) : ((Number(m.totalFine) || 0) + fineNum);
-          } else if (wasOverdue && (!fineAmount || Number(fineAmount) === 0)) {
-            newTotalFine = Math.max(0, (Number(m.totalFine) || 0) - 50);
+            const returnFineRecord = {
+              id: `fine_${Date.now()}`,
+              reason: `Late return penalty (${bookName})`,
+              bookTitle: bookName,
+              amount: fineNum,
+              date: actualReturnDate,
+              status: isFinePaid ? 'Paid' : 'Pending',
+              paymentMethod: isFinePaid ? 'Cash' : '-',
+            };
+            fineHistory = [returnFineRecord, ...otherFines];
+            newTotalFine = isFinePaid
+              ? Math.max(0, (Number(m.totalFine) || 0) - (wasOverdue ? 50 : 0))
+              : Math.max(fineNum, (Number(m.totalFine) || 0));
+          } else {
+            // No fine on return: clear pending overdue fine for this book if any
+            fineHistory = otherFines;
+            newTotalFine = Math.max(0, (Number(m.totalFine) || 0) - (wasOverdue ? 50 : 0));
           }
 
           return {
@@ -415,7 +432,7 @@ export function MemberProvider({ children }) {
       });
 
       setMembers(updatedList);
-      localStorage.setItem('librabook_members_v4', JSON.stringify(updatedList));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
       if (!silent) {
         toast.success(`Book "${bookName || 'Copy'}" returned successfully!`, { icon: '🔄' });
       }

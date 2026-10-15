@@ -50,7 +50,17 @@ export default function FinesPage() {
   const [fineOverrides, setFineOverrides] = useState(() => {
     try {
       const cached = localStorage.getItem('librabook_fine_overrides');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const cleaned = {};
+        Object.keys(parsed).forEach((k) => {
+          if (!k.startsWith('fine_return_')) {
+            cleaned[k] = parsed[k];
+          }
+        });
+        localStorage.setItem('librabook_fine_overrides', JSON.stringify(cleaned));
+        return cleaned;
+      }
     } catch {}
     return {};
   });
@@ -80,8 +90,10 @@ export default function FinesPage() {
       if (member.fineHistory && member.fineHistory.length > 0) {
         member.fineHistory.forEach((fine) => {
           const fineKey = `${member.id}_${fine.id || fine.reason}`;
-          if (!seenKeys.has(fineKey)) {
+          const dedupeKey = `${member.id}_${(fine.bookTitle || fine.reason || '').toLowerCase().trim()}`;
+          if (!seenKeys.has(fineKey) && !seenKeys.has(dedupeKey)) {
             seenKeys.add(fineKey);
+            seenKeys.add(dedupeKey);
             list.push({
               id: fineKey,
               fineId: fine.id,
@@ -101,8 +113,10 @@ export default function FinesPage() {
         // Fallback fine record if overdue
         const overdueLoan = (member.issueHistory || []).find((h) => h.status === 'Overdue');
         const fineKey = `${member.id}_overdue_fine`;
-        if (!seenKeys.has(fineKey)) {
+        const dedupeKey = `${member.id}_${(overdueLoan?.bookTitle || 'overdue').toLowerCase().trim()}`;
+        if (!seenKeys.has(fineKey) && !seenKeys.has(dedupeKey)) {
           seenKeys.add(fineKey);
+          seenKeys.add(dedupeKey);
           list.push({
             id: fineKey,
             memberId: member.id,
@@ -119,75 +133,7 @@ export default function FinesPage() {
       }
     });
 
-    // Seed historical & active transactions for complete demo ledger
-    const seedFines = [
-      {
-        id: 'seed_fine_pending_1',
-        memberId: 'm3',
-        memberName: 'Sneha Patel',
-        membershipId: 'LIB025',
-        memberAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
-        reason: 'Overdue return penalty (Clean Code)',
-        amount: 75,
-        date: '12 Oct 2025',
-        status: 'Pending',
-        paymentMethod: '-',
-      },
-      {
-        id: 'seed_fine_pending_2',
-        memberId: 'm4',
-        memberName: 'Vikram Joshi',
-        membershipId: 'LIB026',
-        memberAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-        reason: 'Damaged page penalty (Deep Work)',
-        amount: 120,
-        date: '14 Oct 2025',
-        status: 'Pending',
-        paymentMethod: '-',
-      },
-      {
-        id: 'hist_fine_1',
-        memberId: 'm1',
-        memberName: 'Rahul Verma',
-        membershipId: 'LIB021',
-        memberAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        reason: 'Late return fee (Atomic Habits)',
-        amount: 25,
-        date: '05 Oct 2025',
-        status: 'Paid',
-        paymentMethod: 'UPI',
-      },
-      {
-        id: 'hist_fine_2',
-        memberId: 'm2',
-        memberName: 'Priya Sharma',
-        membershipId: 'LIB022',
-        memberAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-        reason: 'Lost library badge replacement',
-        amount: 100,
-        date: '02 Oct 2025',
-        status: 'Paid',
-        paymentMethod: 'Card',
-      },
-      {
-        id: 'hist_fine_3',
-        memberId: 'm5',
-        memberName: 'Karan Mehta',
-        membershipId: 'LIB027',
-        memberAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-        reason: 'Book cover wear fee (Dune)',
-        amount: 50,
-        date: '28 Sep 2025',
-        status: 'Waived',
-        paymentMethod: 'Discretionary',
-      },
-    ];
 
-    seedFines.forEach((s) => {
-      if (!seenKeys.has(s.id)) {
-        list.push(s);
-      }
-    });
 
     // Apply any interactive overrides saved for fine records
     const mapped = list.map((item) => {
@@ -223,8 +169,9 @@ export default function FinesPage() {
 
   // Summary Metrics
   const totalFineCollected = useMemo(() => {
-    const paidSum = allFineRecords.filter((f) => f.status === 'Paid').reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
-    return 2450 + paidSum;
+    return allFineRecords
+      .filter((f) => f.status === 'Paid')
+      .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
   }, [allFineRecords]);
 
   const pendingFines = useMemo(() => {
@@ -299,6 +246,8 @@ export default function FinesPage() {
       const updated = {
         ...prev,
         [settlingFine.id]: {
+          ...(prev[settlingFine.id] || {}),
+          ...settlingFine,
           status: 'Paid',
           paymentMethod,
           date: today,
@@ -306,6 +255,8 @@ export default function FinesPage() {
       };
       if (settlingFine.fineId) {
         updated[`${settlingFine.memberId}_${settlingFine.fineId}`] = {
+          ...(prev[`${settlingFine.memberId}_${settlingFine.fineId}`] || {}),
+          ...settlingFine,
           status: 'Paid',
           paymentMethod,
           date: today,
@@ -346,6 +297,8 @@ export default function FinesPage() {
       const updated = {
         ...prev,
         [waivingFine.id]: {
+          ...(prev[waivingFine.id] || {}),
+          ...waivingFine,
           status: 'Waived',
           paymentMethod: 'Discretionary',
           date: today,
@@ -353,6 +306,8 @@ export default function FinesPage() {
       };
       if (waivingFine.fineId) {
         updated[`${waivingFine.memberId}_${waivingFine.fineId}`] = {
+          ...(prev[`${waivingFine.memberId}_${waivingFine.fineId}`] || {}),
+          ...waivingFine,
           status: 'Waived',
           paymentMethod: 'Discretionary',
           date: today,

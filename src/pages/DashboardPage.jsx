@@ -20,6 +20,7 @@ import {
   Sprout,
   CheckCircle2,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useBooks } from '../context/BookContext';
@@ -84,24 +85,74 @@ export default function DashboardPage() {
   }, [categories]);
   const categoriesCount = uniqueCategories.length || 6;
 
-  const totalFineCollected = useMemo(() => {
-    let paidFromOverrides = 0;
+  // Fine Metrics computed synchronously with FinesPage ledger
+  const finesMetrics = useMemo(() => {
+    let fineOverrides = {};
     try {
-      const overrides = JSON.parse(localStorage.getItem('librabook_fine_overrides') || '{}');
-      Object.values(overrides).forEach((o) => {
-        if (o.status === 'Paid') paidFromOverrides += 50;
-      });
+      fineOverrides = JSON.parse(localStorage.getItem('librabook_fine_overrides') || '{}');
     } catch {}
 
-    const memberPaidFines = members.reduce((acc, m) => {
-      const paid = (m.fineHistory || [])
-        .filter((f) => f.status === 'Paid')
-        .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
-      return acc + paid;
-    }, 0);
+    const list = [];
+    const seenKeys = new Set();
 
-    return 2450 + 125 + memberPaidFines + paidFromOverrides;
+    members.forEach((member) => {
+      if (member.fineHistory && member.fineHistory.length > 0) {
+        member.fineHistory.forEach((fine) => {
+          const fineKey = `${member.id}_${fine.id || fine.reason}`;
+          const dedupeKey = `${member.id}_${(fine.bookTitle || fine.reason || '').toLowerCase().trim()}`;
+          if (!seenKeys.has(fineKey) && !seenKeys.has(dedupeKey)) {
+            seenKeys.add(fineKey);
+            seenKeys.add(dedupeKey);
+            list.push({
+              id: fineKey,
+              fineId: fine.id,
+              memberId: member.id,
+              amount: Number(fine.amount) || 50,
+              status: fine.status || 'Pending',
+            });
+          }
+        });
+      } else if (member.totalFine > 0 || member.overdueBooks > 0) {
+        const overdueLoan = (member.issueHistory || []).find((h) => h.status === 'Overdue');
+        const fineKey = `${member.id}_overdue_fine`;
+        const dedupeKey = `${member.id}_${(overdueLoan?.bookTitle || 'overdue').toLowerCase().trim()}`;
+        if (!seenKeys.has(fineKey) && !seenKeys.has(dedupeKey)) {
+          seenKeys.add(fineKey);
+          seenKeys.add(dedupeKey);
+          list.push({
+            id: fineKey,
+            memberId: member.id,
+            amount: Number(member.totalFine) || 50,
+            status: 'Pending',
+          });
+        }
+      }
+    });
+
+    const mapped = list.map((item) => {
+      const override = fineOverrides[item.id] || (item.fineId && fineOverrides[`${item.memberId}_${item.fineId}`]);
+      if (override) {
+        return {
+          ...item,
+          status: override.status,
+        };
+      }
+      return item;
+    });
+
+    const collected = mapped.filter((f) => f.status === 'Paid').reduce((acc, f) => acc + f.amount, 0);
+    const pending = mapped.filter((f) => f.status === 'Pending').reduce((acc, f) => acc + f.amount, 0);
+    const waived = mapped.filter((f) => f.status === 'Waived').reduce((acc, f) => acc + f.amount, 0);
+
+    return {
+      totalFineCollected: collected,
+      pendingFines: pending,
+      waivedFines: waived,
+      totalFinesCount: mapped.length,
+    };
   }, [members]);
+
+  const totalFineCollected = finesMetrics.totalFineCollected;
 
   // Donut chart percentages based on totalCopiesCount
   const availablePercent = totalCopiesCount > 0 ? Math.round((availableCopiesCount / totalCopiesCount) * 100) : 0;
@@ -158,115 +209,159 @@ export default function DashboardPage() {
   const currentChartData = chartDataSets[timeFilter] || chartDataSets['Last 6 Months'];
   const maxChartValue = Math.max(200, Math.ceil(issuedCopiesCount * 1.25));
 
-  // Dynamic Recent Activities based directly on real books & members
+  // Helper to format timestamps into clean relative times
+  const formatTimeAgo = (ts, fallback) => {
+    if (!ts && fallback) return fallback;
+    if (!ts) return 'Today';
+    const diff = Math.max(0, Date.now() - Number(ts));
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return fallback || 'Recently';
+  };
+
+  // Dynamic Recent Activities based directly on real actions across all pages
   const dynamicActivities = useMemo(() => {
-    const list = [];
+    let fineOverrides = {};
+    try {
+      fineOverrides = JSON.parse(localStorage.getItem('librabook_fine_overrides') || '{}');
+    } catch {}
 
-    // 1. Latest book added
-    if (books && books.length > 0) {
-      const b0 = books[0];
-      list.push({
-        id: 'act_book',
-        title: 'New book added',
-        subtitle: `${b0.title} by ${b0.author}`,
-        time: 'Just now',
-        icon: BookOpen,
-        iconBg: 'bg-emerald-50 text-[#0bad96]',
-      });
-    }
+    const rawActivities = [];
 
-    // 2. Latest member registered
-    if (members && members.length > 0) {
-      const m0 = members[0];
-      list.push({
-        id: 'act_member',
-        title: 'New member registered',
-        subtitle: `${m0.name} (${m0.membershipId || 'M00123'})`,
-        time: '2 hours ago',
-        icon: Users,
-        iconBg: 'bg-blue-50 text-blue-500',
+    // 1. Live Returns & Issues from Issue & Return page
+    members.forEach((member, mIdx) => {
+      (member.issueHistory || []).forEach((loan, lIdx) => {
+        if (loan.status === 'Returned') {
+          const ts = loan.returnedAt || (Date.now() - (mIdx * 3600000 + lIdx * 1800000 + 1800000));
+          rawActivities.push({
+            id: `act_ret_${member.id}_${loan.id}`,
+            type: 'return',
+            title: 'Book returned',
+            subtitle: `"${loan.bookTitle}" returned by ${member.name}`,
+            time: loan.returnedAt ? formatTimeAgo(loan.returnedAt, loan.returnDate) : (loan.returnDate || 'Today'),
+            timestamp: ts,
+            icon: RotateCcw,
+            iconBg: 'bg-teal-50 text-teal-600',
+            route: '/issue-return',
+          });
+        } else if (loan.status === 'Issued') {
+          const ts = loan.issuedAt || (Date.now() - (mIdx * 3600000 + lIdx * 1800000 + 7200000));
+          rawActivities.push({
+            id: `act_iss_${member.id}_${loan.id}`,
+            type: 'issue',
+            title: 'Book issued',
+            subtitle: `"${loan.bookTitle}" to ${member.name}`,
+            time: loan.issuedAt ? formatTimeAgo(loan.issuedAt, loan.issueDate) : (loan.issueDate || 'Today'),
+            timestamp: ts,
+            icon: Repeat,
+            iconBg: 'bg-emerald-50 text-emerald-600',
+            route: '/issue-return',
+          });
+        } else if (loan.status === 'Overdue') {
+          rawActivities.push({
+            id: `act_ovd_${member.id}_${loan.id}`,
+            type: 'overdue',
+            title: 'Overdue loan',
+            subtitle: `"${loan.bookTitle}" with ${member.name} (Due: ${loan.dueDate})`,
+            time: 'Overdue',
+            timestamp: Date.now() - 14400000,
+            icon: AlertTriangle,
+            iconBg: 'bg-rose-50 text-rose-500',
+            route: '/issue-return',
+          });
+        }
       });
-    }
 
-    // 3. Book issued
-    const memberWithLoan = members.find((m) => m.issueHistory && m.issueHistory.length > 0);
-    if (memberWithLoan && memberWithLoan.issueHistory[0]) {
-      list.push({
-        id: 'act_issue',
-        title: 'Book issued',
-        subtitle: `To ${memberWithLoan.name} - ${memberWithLoan.issueHistory[0].bookTitle}`,
-        time: '4 hours ago',
-        icon: Repeat,
-        iconBg: 'bg-emerald-50 text-emerald-500',
-      });
-    } else {
-      list.push({
-        id: 'act_issue_default',
-        title: 'Book issued',
-        subtitle: `To Rahul Verma - ${books[1]?.title || 'The Alchemist'}`,
-        time: '4 hours ago',
-        icon: Repeat,
-        iconBg: 'bg-emerald-50 text-emerald-500',
-      });
-    }
+      // 2. Live Fines from Fines page
+      (member.fineHistory || []).forEach((fine, fIdx) => {
+        const override = fineOverrides[`${member.id}_${fine.id || fine.reason}`];
+        const currentStatus = override?.status || fine.status;
+        const currentMethod = override?.paymentMethod || fine.paymentMethod || 'Cash';
 
-    // 4. Book returned
-    const memberWithReturned = members.find((m) => m.booksReturned > 0);
-    if (memberWithReturned) {
-      list.push({
-        id: 'act_return',
-        title: 'Book returned',
-        subtitle: `By ${memberWithReturned.name} - ${books[2]?.title || 'JavaScript Basics'}`,
-        time: '8 hours ago',
-        icon: RotateCcw,
-        iconBg: 'bg-teal-50 text-teal-600',
+        if (currentStatus === 'Paid') {
+          rawActivities.push({
+            id: `act_fine_paid_${member.id}_${fine.id || fIdx}`,
+            type: 'fine_paid',
+            title: 'Fine collected',
+            subtitle: `₹${fine.amount} from ${member.name} (${currentMethod})`,
+            time: fine.date || 'Today',
+            timestamp: Date.now() - (fIdx * 3600000 + 10800000),
+            icon: Coins,
+            iconBg: 'bg-purple-50 text-purple-600',
+            route: '/fines',
+          });
+        } else if (currentStatus === 'Waived') {
+          rawActivities.push({
+            id: `act_fine_waived_${member.id}_${fine.id || fIdx}`,
+            type: 'fine_waived',
+            title: 'Penalty waived',
+            subtitle: `₹${fine.amount} waived for ${member.name}`,
+            time: fine.date || 'Recently',
+            timestamp: Date.now() - (fIdx * 3600000 + 18000000),
+            icon: ShieldCheck,
+            iconBg: 'bg-amber-50 text-amber-600',
+            route: '/fines',
+          });
+        }
       });
-    } else {
-      list.push({
-        id: 'act_return_default',
-        title: 'Book returned',
-        subtitle: `By Sneha Reddy - ${books[2]?.title || 'JavaScript Basics'}`,
-        time: '8 hours ago',
-        icon: RotateCcw,
-        iconBg: 'bg-teal-50 text-teal-600',
-      });
-    }
-
-    // 5. Fine collected
-    const memberWithFine = members.find((m) => m.totalFine > 0);
-    if (memberWithFine) {
-      list.push({
-        id: 'act_fine',
-        title: 'Fine collected',
-        subtitle: `₹ ${memberWithFine.totalFine} from ${memberWithFine.name}`,
-        time: '1 day ago',
-        icon: Coins,
-        iconBg: 'bg-amber-50 text-amber-500',
-      });
-    } else {
-      list.push({
-        id: 'act_fine_default',
-        title: 'Fine collected',
-        subtitle: '₹ 150 from Amit Kumar',
-        time: '1 day ago',
-        icon: Coins,
-        iconBg: 'bg-amber-50 text-amber-500',
-      });
-    }
-
-    // 6. Category active
-    const displayCat = uniqueCategories[0] || 'Technology';
-    list.push({
-      id: 'act_cat',
-      title: 'Category active',
-      subtitle: displayCat,
-      time: '1 day ago',
-      icon: Tag,
-      iconBg: 'bg-purple-50 text-purple-600',
     });
 
-    return list;
-  }, [books, members, uniqueCategories]);
+    // 3. Latest Books from Books page
+    if (books && books.length > 0) {
+      books.slice(0, 2).forEach((b, bIdx) => {
+        rawActivities.push({
+          id: `act_book_${b.id}`,
+          type: 'book',
+          title: 'Book cataloged',
+          subtitle: `"${b.title}" by ${b.author} (${b.category || 'General'})`,
+          time: 'In Stock',
+          timestamp: Date.now() - (bIdx * 10000000 + 25000000),
+          icon: BookOpen,
+          iconBg: 'bg-blue-50 text-blue-600',
+          route: '/books',
+        });
+      });
+    }
+
+    // 4. Latest Members from Members page
+    if (members && members.length > 0) {
+      members.slice(0, 2).forEach((m, mIdx) => {
+        rawActivities.push({
+          id: `act_mem_${m.id}`,
+          type: 'member',
+          title: 'Member registered',
+          subtitle: `${m.name} (${m.membershipId})`,
+          time: m.joinDate || 'Active',
+          timestamp: Date.now() - (mIdx * 15000000 + 40000000),
+          icon: Users,
+          iconBg: 'bg-indigo-50 text-indigo-600',
+          route: '/members',
+        });
+      });
+    }
+
+    // Sort by timestamp descending (newest activity first)
+    rawActivities.sort((a, b) => b.timestamp - a.timestamp);
+
+    // Pick top distinct activities
+    const unique = [];
+    const seen = new Set();
+    for (const item of rawActivities) {
+      const key = `${item.type}_${item.subtitle}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(item);
+        if (unique.length >= 6) break;
+      }
+    }
+
+    return unique;
+  }, [books, members]);
 
   // Real Quick Action dispatch handler
   const handleQuickActionSubmit = async (e) => {
@@ -489,6 +584,11 @@ export default function DashboardPage() {
                 <div className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
                   <AlertTriangle className="w-4.5 h-4.5 stroke-[2]" />
                 </div>
+                {finesMetrics.pendingFines > 0 && (
+                  <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-md border border-rose-100">
+                    ₹{finesMetrics.pendingFines} Due
+                  </span>
+                )}
               </div>
               <div className="mt-1">
                 <span className="text-[11px] font-semibold text-slate-500 block leading-tight">Overdue Books</span>
@@ -499,8 +599,8 @@ export default function DashboardPage() {
                   <span className="text-xs font-bold text-red-500">Loans</span>
                 </div>
                 <div className="text-[10px] sm:text-[11px] font-bold text-red-500 mt-1 flex items-center gap-1">
-                  <span>↑ 5%</span>
-                  <span className="text-slate-400 font-normal">fine pending</span>
+                  <span>₹ {finesMetrics.pendingFines}</span>
+                  <span className="text-slate-400 font-normal">pending fine</span>
                 </div>
               </div>
               <AlertTriangle className="w-14 h-14 text-slate-100/60 absolute -right-2.5 -bottom-2.5 pointer-events-none stroke-[1]" />
@@ -541,15 +641,23 @@ export default function DashboardPage() {
                 <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                   <Coins className="w-4.5 h-4.5 stroke-[2]" />
                 </div>
+                {finesMetrics.pendingFines > 0 && (
+                  <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-100">
+                    ₹{finesMetrics.pendingFines} Due
+                  </span>
+                )}
               </div>
               <div className="mt-1">
                 <span className="text-[11px] font-semibold text-slate-500 block leading-tight">Fine Collected</span>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none mt-1">
-                  ₹ {totalFineCollected.toLocaleString()}
+                <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
+                  <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                    ₹ {totalFineCollected.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">Paid</span>
                 </div>
                 <div className="text-[10px] sm:text-[11px] font-bold text-purple-600 mt-1 flex items-center gap-1">
-                  <span>↑ 20%</span>
-                  <span className="text-slate-400 font-normal">from last month</span>
+                  <span>{finesMetrics.pendingFines > 0 ? `₹${finesMetrics.pendingFines} pending` : 'All cleared'}</span>
+                  <span className="text-slate-400 font-normal">• click to view fines</span>
                 </div>
               </div>
               <Coins className="w-14 h-14 text-slate-100/60 absolute -right-2.5 -bottom-2.5 pointer-events-none stroke-[1]" />
@@ -833,33 +941,48 @@ export default function DashboardPage() {
               </div>
 
               {/* Activity Items List */}
-              <div className="space-y-3">
-                {dynamicActivities.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.id} className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2.5 overflow-hidden">
-                        <div className={`w-7.5 h-7.5 rounded-xl ${item.iconBg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                          <Icon className="w-3.5 h-3.5 stroke-[2]" />
-                        </div>
-                        <div className="truncate text-left leading-tight">
-                          <div className="text-xs font-bold text-slate-800 truncate">
-                            {item.title}
+              <div className="space-y-2">
+                {dynamicActivities.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                    No recent activities recorded yet.
+                  </div>
+                ) : (
+                  dynamicActivities.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => item.route && navigate(item.route)}
+                        className={`flex items-start justify-between gap-2 p-1.5 -mx-1.5 rounded-xl transition-all ${
+                          item.route ? 'cursor-pointer hover:bg-slate-50/90 active:scale-[0.99]' : ''
+                        }`}
+                        title={item.route ? `Go to ${item.route}` : undefined}
+                      >
+                        <div className="flex items-start gap-2.5 overflow-hidden">
+                          <div className={`w-7.5 h-7.5 rounded-xl ${item.iconBg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                            <Icon className="w-3.5 h-3.5 stroke-[2]" />
                           </div>
-                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {item.subtitle}
+                          <div className="truncate text-left leading-tight">
+                            <div className="text-xs font-bold text-slate-800 truncate">
+                              {item.title}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              {item.subtitle}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Time and Green Status Dot */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] text-slate-400 font-medium">
-                        <span>{item.time}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {/* Time and Status Dot */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] text-slate-400 font-medium">
+                          <span>{item.time}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            item.type === 'overdue' ? 'bg-rose-500' : 'bg-emerald-500'
+                          }`} />
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
