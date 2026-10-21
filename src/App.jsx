@@ -18,6 +18,8 @@ import MembersPage from './pages/MembersPage';
 import IssueReturnPage from './pages/IssueReturnPage';
 import FinesPage from './pages/FinesPage';
 import CategoriesPage from './pages/CategoriesPage';
+import ReportsPage from './pages/ReportsPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -45,8 +47,8 @@ export default function App() {
                 <Route path="/issue-return" element={<IssueReturnPage />} />
                 <Route path="/fines" element={<FinesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/reports" element={<DashboardPage />} />
-                <Route path="/settings" element={<DashboardPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
               </Route>
 
           {/* Root and Fallback Route */}
